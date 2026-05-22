@@ -55,7 +55,6 @@ public static partial class FileAnalysis
                 {
                     if (!map.Any(b => b.Offset == valOrOff))
                     {
-                        Console.WriteLine($"{entry.Tag:X}");
                         map.Add(new ExifBlock { Offset = (int)valOrOff, Length = dataSize, Type = ExifBlockType.Data });
                         if (entry.Tag == 0x8769 || entry.Tag == 0x8825)
                         {
