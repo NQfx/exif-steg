@@ -56,7 +56,7 @@ public static partial class FileAnalysis
                     stream.Position -= 1;
                 
                 int dataLength = length - 2 - identifier.Length;
-                byte[]? data = dataLength > 0 ? reader.ReadBytes(dataLength) : null;
+                byte[]? data = dataLength > 0 ? reader.ReadBytes(dataLength-1) : null;
                 byte[]? tail = GetJpegAppTail(stream, reader);
                 
                 segments.Add(new AppSegment

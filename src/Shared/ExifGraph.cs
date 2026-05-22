@@ -49,6 +49,7 @@ public class EntryNode
     public ushort Tag { get; set; }
     public ushort Type { get; set; }
     public uint Count { get; set; } 
+    public uint? ValueOffset { get; set; }
     public ExifPointer Pointer { get; set; } = new ExifPointer();
     public byte[] InlineData { get; set; } = new byte[4];
 
