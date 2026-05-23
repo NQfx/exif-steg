@@ -123,7 +123,7 @@
                             Foreground="{DynamicResource SemiColorPrimary}"
                             VerticalAlignment="Center"
                             HorizontalAlignment="Center"
-                            IsVisible="True"/>
+                            IsVisible="{Binding WrittenFileFlag}"/>
             </Border>
             <Grid Classes="FileContentControlPanel" ColumnDefinitions="Auto,*, Auto, Auto">
                 <Button Grid.Column="0" 

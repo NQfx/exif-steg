@@ -122,11 +122,28 @@ public partial class MainWindow : Window
         }
     }
 
+    public static readonly DirectProperty<MainWindow, bool> WrittenFileFlagProp =
+        AvaloniaProperty.RegisterDirect<MainWindow, bool>(
+            nameof(WrittenFileFlag),
+            o => o.WrittenFileFlag,
+            (o, v) => o.WrittenFileFlag = v);
+
+    private bool _writtenFileFlag = false;
+    public bool WrittenFileFlag
+    {
+        get => _writtenFileFlag;
+        set 
+        {
+            SetAndRaise(WrittenFileFlagProp, ref _writtenFileFlag, value);
+            RaisePropertyChanged(WrittenFileFlagProp, !WrittenFileFlag, WrittenFileFlag);
+        }
+    }
+
     public static readonly DirectProperty<MainWindow, bool> FormatErrorFlagProp =
         AvaloniaProperty.RegisterDirect<MainWindow, bool>(
-            nameof(DeleteBlockFlag),
-            o => o.DeleteBlockFlag,
-            (o, v) => o.DeleteBlockFlag = v);
+            nameof(FormatErrorFlag),
+            o => o.FormatErrorFlag,
+            (o, v) => o.FormatErrorFlag = v);
 
     private bool _formatErrorFlag = false;
     public bool FormatErrorFlag
@@ -182,6 +199,7 @@ public partial class MainWindow : Window
                 FormatErrorFlag = true;
                 FileFormatTextBlock.Text = "UNKNOWN";
             }
+            WrittenFileFlag = false;
         }
     }
 
@@ -194,6 +212,7 @@ public partial class MainWindow : Window
         else
             _core.Write(TextBuffer);
         DeleteBlockFlag = false;
+        WrittenFileFlag = true;
     }
 
     private void CloseFileButton_Click(object? sender, RoutedEventArgs e)
@@ -201,6 +220,7 @@ public partial class MainWindow : Window
         IsFileLoaded = false;
         FilePath = string.Empty;
         DeleteBlockFlag = false;
+        WrittenFileFlag = false;
     }
 
     private void RemoveBlockButton_Click(object? sender, RoutedEventArgs e)
@@ -209,6 +229,7 @@ public partial class MainWindow : Window
             throw new InvalidOperationException();
         DeleteBlockFlag = true;
         Text=string.Empty;
+        WrittenFileFlag = false;
     }
 
     private void AddBlockButton_Click(object? sender, RoutedEventArgs e)
@@ -218,6 +239,7 @@ public partial class MainWindow : Window
         Text = "⠀";
         _core.Read(true);
         DeleteBlockFlag = false;
+        WrittenFileFlag = false;
     }
 
     private void ReadFile(CoreObject core)
