@@ -3,17 +3,11 @@ using System.Text;
 namespace Steganography.Shared;
 public static class Strategies {
     public static void WriteStrategieLegacy(byte[] data, string path,bool isDeleteData = false, string? outputPath = null) {
-        if (!File.Exists(path))
-            throw new FileNotFoundException(path);
-
-        if (FileAnalysis.GetFileFormat(path) != FileFormat.Jpeg)
-            throw new InvalidOperationException("File is not JPEG");
-
+        if (!File.Exists(path)) throw new FileNotFoundException(path);
+        if (FileAnalysis.GetFileFormat(path) != FileFormat.Jpeg) throw new InvalidOperationException("File is not JPEG");
         outputPath ??= path;
-
         byte[] jpeg = File.ReadAllBytes(path);
-
-        // Новый EXIF payload
+        // ГЌГ®ГўГ»Г© EXIF payload
         // APP1 = "Exif\0\0" + TIFF DATA
         byte[] exifHeader = Encoding.ASCII.GetBytes("Exif\0\0");
 
@@ -23,41 +17,32 @@ public static class Strategies {
         Buffer.BlockCopy(data, 0, exifPayload, exifHeader.Length, data.Length);
         if (isDeleteData) { exifPayload = []; }
         // APP1 length:
-        // включает свои 2 байта длины
+        // ГўГЄГ«ГѕГ·Г ГҐГІ Г±ГўГ®ГЁ 2 ГЎГ Г©ГІГ  Г¤Г«ГЁГ­Г»
         ushort app1Length = (ushort)(exifPayload.Length + 2);
-
-        using var input = new MemoryStream(jpeg);
-        using var reader = new BinaryReader(input);
-
-        using var output = new MemoryStream();
-        using var writer = new BinaryWriter(output);
-
-        // SOI
+        using MemoryStream input = new MemoryStream(jpeg);
+        using BinaryReader reader = new BinaryReader(input);
+        using MemoryStream output = new MemoryStream();
+        using BinaryWriter writer = new BinaryWriter(output);
+        
         ushort soi = ReadBigEndianUInt16(reader);
 
         if (soi != 0xFFD8)
             throw new InvalidOperationException("Invalid JPEG");
 
         WriteBigEndianUInt16(writer, soi);
-
         bool exifWritten = false;
-        
         while (input.Position < input.Length) {
             byte prefix = reader.ReadByte();
-
             if (prefix != 0xFF)
                 throw new InvalidOperationException("Invalid JPEG marker");
-
             byte marker = reader.ReadByte();
-
-            // дальше идёт image stream
+            // Г¤Г Г«ГјГёГҐ ГЁГ¤ВёГІ image stream
             if (marker == 0xDA) {
-                // Если EXIF ещё не вставлен — вставляем перед 0xDA
+                // Г…Г±Г«ГЁ EXIF ГҐГ№Вё Г­ГҐ ГўГ±ГІГ ГўГ«ГҐГ­ вЂ” ГўГ±ГІГ ГўГ«ГїГҐГ¬ ГЇГҐГ°ГҐГ¤ 0xDA
                 if (!exifWritten) {
                     WriteApp1(writer, app1Length, exifPayload);
                     exifWritten = true;
                 }
-
                 writer.Write((byte)0xFF);
                 writer.Write(marker);
 
@@ -70,7 +55,6 @@ public static class Strategies {
 
                 byte[] imageData = reader.ReadBytes((int)(input.Length - input.Position));
                 writer.Write(imageData);
-
                 break;
             }
 
@@ -80,11 +64,8 @@ public static class Strategies {
                 writer.Write(marker);
                 continue;
             }
-
             ushort length = ReadBigEndianUInt16(reader);
-
             byte[] segmentData = reader.ReadBytes(length - 2);
-
             bool isExif =
                 marker == 0xE1 &&
                 segmentData.Length >= 6 &&
@@ -97,24 +78,19 @@ public static class Strategies {
 
             
             if (isExif) {
-                // Вставляем новый только один раз
+                // Г‚Г±ГІГ ГўГ«ГїГҐГ¬ Г­Г®ГўГ»Г© ГІГ®Г«ГјГЄГ® Г®Г¤ГЁГ­ Г°Г Г§
                 if (!exifWritten) {
                     WriteApp1(writer, app1Length, exifPayload);
                     exifWritten = true;
                 }
-
                 continue;
             }
-
-            // Остальные сегменты копируем как есть
+            // ГЋГ±ГІГ Г«ГјГ­Г»ГҐ Г±ГҐГЈГ¬ГҐГ­ГІГ» ГЄГ®ГЇГЁГ°ГіГҐГ¬ ГЄГ ГЄ ГҐГ±ГІГј
             writer.Write((byte)0xFF);
             writer.Write(marker);
-
             WriteBigEndianUInt16(writer, length);
-
             writer.Write(segmentData);
         }
-
         File.WriteAllBytes(outputPath, output.ToArray());
     }
 
@@ -126,24 +102,19 @@ public static class Strategies {
         writer.Write((byte)0xE1);
 
         WriteBigEndianUInt16(writer, length);
-
         writer.Write(payload);
     }
-
     private static ushort ReadBigEndianUInt16(BinaryReader reader) {
         byte high = reader.ReadByte();
         byte low = reader.ReadByte();
-
         return (ushort)((high << 8) | low);
     }
-
     private static void WriteBigEndianUInt16(BinaryWriter writer, ushort value) {
         writer.Write((byte)(value >> 8));
         writer.Write((byte)(value & 0xFF));
     }
     public static void WriteStrategie(byte[] data, string path,AppSegment app1) {
         var file = File.ReadAllBytes(path);
-        
         int currentOffset = 0;
         MemoryStream stream = new MemoryStream(file);
         BinaryReader reader = new BinaryReader(new MemoryStream(data));
