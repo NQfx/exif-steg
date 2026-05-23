@@ -3,8 +3,12 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="20" d:DesignHeight="45"
+        xmlns:local="using:Steganography.UI" 
         x:Class="Steganography.UI.MainWindow"
-        Title="Exif Steganography"
+        x:DataType="local:MainWindow"
+        Name="RootWindow"
+        Title="Exif Steganography" 
+        DataContext="{Binding $self}"
         Width="500"
         Height="700">
 
@@ -30,6 +34,7 @@
                         Watermark="Выберите файл..." 
                         IsReadOnly="True"
                         VerticalAlignment="Center"
+                        Text="{Binding FilePath}"
                         Margin="0,0,10,0"/>
 
                 <Border Grid.Column="2" 
@@ -42,7 +47,7 @@
                         Height="32">
                     
                     <TextBlock Name="FileFormatTextBlock"
-                            Text="--" 
+                            Text="{Binding FileExtension}" 
                             FontWeight="Bold"
                             Foreground="{DynamicResource SemiColorPrimary}"
                             VerticalAlignment="Center" 
@@ -59,13 +64,12 @@
                         HorizontalAlignment="Left"
                         Margin="0,10,0,0"/>
 
-            <Border Margin="0,10,10,0">
+            <Border Margin="0,10,10,0" IsVisible="{Binding FormatErrorFlag}">
                 <TextBlock Name="FileFormatErroMessage"
                             Text="Формат выбранного файла не поддерживается" 
                             Foreground="{DynamicResource SemiColorPrimary}"
                             VerticalAlignment="Center"
-                            HorizontalAlignment="Center"
-                            IsVisible="False"/>
+                            HorizontalAlignment="Center"/>
             </Border>
         </StackPanel>
         
@@ -76,7 +80,7 @@
                 Padding="10" 
                 CornerRadius="4" 
                 Name="ExifDataNotFoundMessage"
-                IsVisible="True">
+                IsVisible="{Binding !IsTextFound}">
                 <TextBlock Text="Данные не найдены" 
                         HorizontalAlignment="Center" 
                         VerticalAlignment="Center"/>
@@ -86,46 +90,87 @@
                 Background="{DynamicResource SemiColorGrey2}" 
                 HorizontalAlignment="Stretch"
                 VerticalAlignment="Stretch"
-                Padding="10,0,10,0" 
                 CornerRadius="4" 
-                Name="FileContent"
-                IsVisible="False">
-
-            <ListBox>
-                <ListBox.Items>
-                    <ListBoxItem>Элемент 1</ListBoxItem>
-                </ListBox.Items>
+                Name="FileContent">
+            
+            <Border.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Path="IsFileLoaded" />
+                    <Binding Path="IsTextFound" />
+                </MultiBinding>
+            </Border.IsVisible>
+            
+            <ListBox ItemsSource="{Binding SignleBlockList}">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Spacing="5" Margin="5">
+                            <TextBlock Text="Текстовый блок" FontWeight="Bold" />
+                            <TextBox Text="{Binding #RootWindow.TextBuffer, Mode=TwoWay}" 
+                                AcceptsReturn="True"
+                                TextWrapping="Wrap"
+                                VerticalAlignment="Stretch"
+                                HorizontalAlignment="Stretch"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
             </ListBox>
         </Border>
         
         <StackPanel Classes="FileContentBlock" Grid.Row="2">
-            <Grid Classes="FileContentControlPanel" ColumnDefinitions="*, Auto, Auto">
+            <Border Margin="0,0,0,15">
+                <TextBlock Name="АileWrittenSuccessfullyMessage"
+                            Text="Файл записан" 
+                            Foreground="{DynamicResource SemiColorPrimary}"
+                            VerticalAlignment="Center"
+                            HorizontalAlignment="Center"
+                            IsVisible="True"/>
+            </Border>
+            <Grid Classes="FileContentControlPanel" ColumnDefinitions="Auto,*, Auto, Auto">
                 <Button Grid.Column="0" 
                         Content="Записать" 
-                        Classes="Key1"
-                        IsEnabled="False"
+                        IsEnabled="{Binding IsFileLoaded}"
                         VerticalAlignment="Center"
                         HorizontalAlignment="Left"
-                        Click="OpenFileButton_Click"/>
+                        Margin="0,0,10,0"
+                        Click="WriteButton_Click"/>
 
                 <Button Grid.Column="1" 
+                        Content="Закрыть" 
+                        IsEnabled="{Binding IsFileLoaded}"
+                        VerticalAlignment="Center"
+                        HorizontalAlignment="Left"
+                        Click="CloseFileButton_Click"/>
+
+                <Button Grid.Column="2" 
                         Content="+" 
                         FontWeight="Bold"
                         FontSize="20"
-                        Classes="Key2"
                         IsEnabled="False"
                         VerticalAlignment="Center"
-                        Click="OpenFileButton_Click"
-                        Margin="0,0,10,0"/>
+                        Click="AddBlockButton_Click"
+                        Margin="0,0,10,0">
+                        <Button.IsEnabled>
+                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                <Binding Path="IsFileLoaded" />
+                                <Binding Path="!IsTextFound" />
+                            </MultiBinding>
+                        </Button.IsEnabled>
+                </Button>
 
-                <Button Grid.Column="2" 
+                <Button Grid.Column="3" 
                         Content="-"
                         FontSize="20"
                         FontWeight="Bold"
                         IsEnabled="False"
-                        Classes="Key3"
                         VerticalAlignment="Center"
-                        Click="OpenFileButton_Click"/>
+                        Click="RemoveBlockButton_Click">
+                        <Button.IsEnabled>
+                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                <Binding Path="IsFileLoaded" />
+                                <Binding Path="IsTextFound" />
+                            </MultiBinding>
+                        </Button.IsEnabled>
+                </Button>
             </Grid>
         </StackPanel>
     </Grid>

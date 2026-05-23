@@ -1,19 +1,16 @@
-﻿//namespace Steganography.Shared;
-using Steganography.Shared;
-using System;
-using System.IO;
+﻿using Steganography.Shared;
 using System.Text;
-using static System.Net.Mime.MediaTypeNames;
-using static System.Runtime.InteropServices.JavaScript.JSType;
-public class Core {
+
+public class CoreObject {
     public string Path { get; }
 
     public AppSegment? App1Segment { get; private set; }
 
-    public Core(string path) {
+    public CoreObject(string path) {
 
         if (!File.Exists(path)) throw new FileNotFoundException(path);
-        if (FileAnalysis.GetFileFormat(path) != FileFormat.Jpeg) throw new InvalidOperationException("Only JPEG supported");
+        if (FileAnalysis.GetFileFormat(path) != FileFormat.Jpeg) 
+            throw new InvalidOperationException("Only JPEG supported");
         Path = path;
 
         LoadApp1();

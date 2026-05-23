@@ -20,4 +20,9 @@
     </PackageReference>
     <PackageReference Include="Semi.Avalonia" Version="12.0.1" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Core\Steganography.Core.csproj" />
+    <ProjectReference Include="..\Shared\Steganography.Shared.csproj" />
+  </ItemGroup>
 </Project>
