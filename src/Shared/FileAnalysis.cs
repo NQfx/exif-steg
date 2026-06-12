@@ -1,6 +1,8 @@
-﻿namespace Steganography.Shared;
+﻿using System.Buffers.Binary;
 
-public static partial class FileAnalysis
+namespace Steganography.Shared;
+
+public static class FileAnalysis
 {
     public static FileFormat GetFileFormat(string path)
     {
@@ -53,11 +55,18 @@ public static partial class FileAnalysis
                 var identifier = ReadNullTerminatedString(reader);
 
                 if (reader.ReadByte() != 0x00)
+                {
                     stream.Position -= 1;
-                
+                }
+                else 
+                {
+                    Array.Resize(ref identifier, identifier.Length+1);
+                    identifier[^1] = 0x00;
+                }
+
                 int dataLength = length - 2 - identifier.Length;
                 byte[]? data = dataLength > 0 ? reader.ReadBytes(dataLength-1) : null;
-                byte[]? tail = GetJpegAppTail(stream, reader);
+                byte[]? tail = ReadJpegAppTail(stream, reader);
                 
                 segments.Add(new AppSegment
                 {
@@ -74,7 +83,43 @@ public static partial class FileAnalysis
         return segments;
     }
 
-    private static byte[] GetJpegAppTail(FileStream stream, BinaryReader reader)
+    public static (long Start, long End) GetAppSegemntsPos(string path)
+    {
+        long start = -1;
+        long end = -1;
+
+        using FileStream stream = File.OpenRead(path);
+        using var reader = new BinaryReader(stream);
+
+        while (stream.Position < stream.Length)
+        {
+            byte marker = reader.ReadByte();
+            int gapCount = 1;
+
+            while ((marker == JpegMarkers.Prefix || marker == 0x00) && stream.Position < stream.Length)
+            {
+                marker = reader.ReadByte();
+                gapCount += 1;
+            }
+
+            if (marker == JpegMarkers.SOI)
+                continue;
+
+            if (marker >= JpegMarkers.APP0 && marker <= JpegMarkers.APP0 + 0x0F)
+            {
+                if (start == -1) start = stream.Position - gapCount;
+                int length = ReadBigEndianUInt16(reader) - 2;
+
+                stream.Position += length;
+                ReadJpegAppTail(stream, reader);
+                end = stream.Position;
+            }
+            else break;
+        }
+        return new (start, end);
+    }
+
+    private static byte[] ReadJpegAppTail(FileStream stream, BinaryReader reader)
     {
         List<byte>? tail = [];
         while (stream.Position < stream.Length)
@@ -82,7 +127,7 @@ public static partial class FileAnalysis
             var b = reader.ReadByte();
             if (IsJpegMarker(b))
             {
-                stream.Position -= 1;
+                stream.Position -= 2;
                 break;
             }
             if (b == JpegMarkers.Prefix)
@@ -101,6 +146,45 @@ public static partial class FileAnalysis
         return (ushort)((high << 8) | low);
     }
 
+    public static List<PngChunk> GetPngChunks(string path)
+    {
+        var chunks = new List<PngChunk>();
+        if (!File.Exists(path))
+            throw new FileNotFoundException();
+
+        using FileStream stream = File.OpenRead(path);
+        using var reader = new BinaryReader(stream);
+
+        reader.ReadBytes(8);
+        while (stream.Position < stream.Length)
+        {
+            var length = reader.ReadBytes(4);
+            var type = reader.ReadBytes(4);
+
+            uint dataLength = BinaryPrimitives.ReadUInt32BigEndian(length);
+            var data = new byte[dataLength];
+
+            for (var i = 0; i < dataLength; i++)
+            {   
+                data[i] = reader.ReadByte();
+            }
+
+            var crc = reader.ReadBytes(4);
+            var chunkCrc = BinaryPrimitives.ReadUInt32BigEndian(crc);
+
+            var chunk = new PngChunk()
+            {
+                Length = dataLength,
+                Type = type,
+                Data = data,
+                Crc = chunkCrc
+            };
+
+            chunks.Add(chunk);
+        }
+        return chunks;
+    }
+
     private static byte[] ReadNullTerminatedString(BinaryReader reader)
     {
         var bytes = new List<byte>();
@@ -108,6 +192,7 @@ public static partial class FileAnalysis
         
         while ((b = reader.ReadByte()) != 0)
             bytes.Add(b);
+        
         
         bytes.Add(0);
         return [.. bytes];
@@ -123,6 +208,14 @@ public class AppSegment
     public byte[]? Identifier { get; set; }
     public byte[]? Data { get; set; }
     public byte[]? Tail { get; set; }
+}
+
+public class PngChunk 
+{
+    public uint Length { get; set; }
+    public byte[]? Type { get; set; }
+    public byte[]? Data { get; set; }
+    public uint Crc { get; set; }
 }
 
 public enum FileFormat

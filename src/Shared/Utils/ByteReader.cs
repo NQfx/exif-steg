@@ -1,21 +1,14 @@
-namespace Steganography.Shared;
-public class BytesReader
+namespace Steganography.Shared.Utils;
+public class BytesReader(byte[] data)
 {
-    private readonly byte[] _data;
-    private int _position;
-    
-    public bool IsLittleEndian { get; set; }
-    public int Position => _position;
+    private readonly byte[] _data = data;
+    private long _position = 0;
+
+    public bool IsLittleEndian { get; set; } = true;
+    public long Position => _position;
     public int Length => _data.Length;
-    
-    public BytesReader(byte[] data)
-    {
-        _data = data;
-        _position = 0;
-        IsLittleEndian = true;
-    }
-    
-    public void Seek(int position)
+
+    public void Seek(long position)
     {
         if (position < 0 || position >= _data.Length)
             throw new ArgumentOutOfRangeException();
@@ -57,7 +50,7 @@ public class BytesReader
         
         var result = new byte[count];
         Array.Copy(_data, _position, result, 0, count);
-        _position += count;
+        _position += (uint)count;
         return result;
     }
     

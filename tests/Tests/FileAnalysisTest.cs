@@ -1,0 +1,134 @@
+﻿using Steganography.Shared;
+
+namespace Steganography.Tests;
+
+public class UnitTest1
+{
+    [Fact]
+    public void GetFileFormatTest()
+    {
+        var img1 = GetPath("img/1.jpg");
+        var img2 = GetPath("img/4.png");
+        Assert.Equal(FileFormat.Jpeg, FileAnalysis.GetFileFormat(img1));
+        Assert.Equal(FileFormat.Png, FileAnalysis.GetFileFormat(img2));
+    }
+
+    [Fact]
+    public void GetJpegAppSegments()
+    {
+        var img = GetPath("img/1.jpg");
+        var segments = FileAnalysis.GetJpegAppSegments(img);
+
+        foreach(var s in segments)
+        {
+            Console.WriteLine("APP" + s.AppNumber +" : "+ GetStringFromBytes(s.Identifier));
+        }
+
+        var app1 = segments.Where(s  => System.Text.Encoding.UTF8.GetString(s.Identifier) == "Exif\0\0").First();
+        Assert.NotNull(app1);
+
+        // Assert.Equal(0, segments[0].AppNumber);
+        // Assert.Equal(1, segments[1].AppNumber);
+        // Assert.Equal("JFIF\0", GetStringFromBytes(segments[0].Identifier));
+        // Assert.Equal("Exif\0", GetStringFromBytes(segments[1].Identifier));
+    }
+
+    [Fact]
+    public void GetExifGraphFromJpegTest()
+    {
+        var img = GetPath("img/1.jpg");
+        var segments = FileAnalysis.GetJpegAppSegments(img);
+
+        var app1 = segments.Where(s  => System.Text.Encoding.UTF8.GetString(s.Identifier) == "Exif\0\0").FirstOrDefault();
+        var graph = ExifAnalysis.GetExifGraph(app1.Data);
+
+        var ifd0 = graph.Nodes.OfType<IfdNode>().First() as IfdNode;
+        Assert.NotNull(ifd0);
+
+        foreach(EntryNode e in ifd0.Entries)
+        {
+            var data = e.Pointer.Target as DataNode;
+            if (e.Tag == 0x8769)
+            {
+                var target = e.Pointer.Target is IfdNode ? e.Pointer.Target as IfdNode : null;
+                Console.WriteLine($"0x{e.Tag:X} IFD {target}");
+                if (target != null)
+                {
+                    foreach(var i in target.Entries)
+                    {
+                        var data1 = i.Pointer.Target as DataNode;
+                        if (data1 is null)
+                            Console.WriteLine($"\t0x{i.Tag:X} {i.InlineData[0]}");
+                        else
+                            Console.WriteLine($"\t0x{i.Tag:X} {GetStringFromBytes(data1.Data)}");
+
+                    }
+                }
+            }
+            else if (data is null)
+                Console.WriteLine($"0x{e.Tag:X} {e.InlineData[0]}");
+            else
+                Console.WriteLine($"0x{e.Tag:X} {GetStringFromBytes(data.Data)}");
+        }
+    }
+
+    [Fact]
+    public void GetPngChunksTest()
+    {
+        var img = GetPath("img/4.png");
+        var chunks = FileAnalysis.GetPngChunks(img);
+
+        Assert.True(chunks.Count >= 3);
+        Assert.True(chunks.Where(e => {return e.Type != null && (GetStringFromBytes(e.Type) == "IHDR");}).Count() == 1);
+        Assert.True(chunks.Where(e => {return e.Type != null && (GetStringFromBytes(e.Type) == "IDAT");}).Count() == 1);
+        Assert.True(chunks.Where(e => {return e.Type != null && (GetStringFromBytes(e.Type) == "IEND");}).Count() == 1);
+    }
+
+    [Fact]
+    public void GetExifGraphFromPngTest()
+    {
+        var img = GetPath("img/basketball.png");
+        var chunks = FileAnalysis.GetPngChunks(img);
+        var exifChunk = chunks.Where(e => {return e.Type != null && (GetStringFromBytes(e.Type) == "eXIf");}).First();
+        var graph = ExifAnalysis.GetExifGraph(exifChunk.Data);
+        var ifd0 = graph.Nodes.OfType<IfdNode>().First() as IfdNode;
+        Assert.NotNull(ifd0);
+
+        foreach(EntryNode e in ifd0.Entries)
+        {
+            var data = e.Pointer.Target as DataNode;
+            if (e.Tag == 0x8769)
+            {
+                var target = e.Pointer.Target is IfdNode ? e.Pointer.Target as IfdNode : null;
+                Console.WriteLine($"0x{e.Tag:X} IFD {target}");
+                if (target != null)
+                {
+                    foreach(var i in target.Entries)
+                    {
+                        var data1 = i.Pointer.Target as DataNode;
+                        if (data1 is null)
+                            Console.WriteLine($"\t0x{i.Tag:X} {i.InlineData[0]}");
+                        else
+                            Console.WriteLine($"\t0x{i.Tag:X} {GetStringFromBytes(data1.Data)}");
+
+                    }
+                }
+            }
+            else if (data is null)
+                Console.WriteLine($"0x{e.Tag:X} {e.InlineData[0]}");
+            else
+                Console.WriteLine($"0x{e.Tag:X} {GetStringFromBytes(data.Data)}");
+        }
+    }
+
+    [Fact]
+    public void GetJpegAppSegmentsPosTest()
+    {
+        var img = GetPath("img/nyc.jpg");
+        var pos = FileAnalysis.GetAppSegemntsPos(img);
+        Console.WriteLine(pos.Start + " " + pos.End);
+    }
+
+    private static string GetPath(string localPath) => "../../../" + localPath;
+    private static string GetStringFromBytes(byte[] bytes) => System.Text.Encoding.UTF8.GetString(bytes);
+}

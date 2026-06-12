@@ -2,6 +2,12 @@ using System.Text;
 
 namespace Steganography.Shared;
 public static class Strategies {
+
+    public static void UnlinkedGapStrategy(ExifGraph graph, byte[] bytes)
+    {
+        
+    }
+
     public static void WriteStrategieLegacy(byte[] data, string path,bool isDeleteData = false, string? outputPath = null) {
         if (!File.Exists(path)) throw new FileNotFoundException(path);
         if (FileAnalysis.GetFileFormat(path) != FileFormat.Jpeg) throw new InvalidOperationException("File is not JPEG");
@@ -129,9 +135,6 @@ public static class Strategies {
 
             }
         }
-       
-
-        
     }
 }
 

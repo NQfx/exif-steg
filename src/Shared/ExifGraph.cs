@@ -12,7 +12,7 @@ public abstract class ExifNode
 
 public class ExifPointer
 {
-    public ExifNode Target { get; set; }
+    public ExifNode? Target { get; set; }
     public uint GetAddress(Dictionary<long, uint> map) =>
         (Target != null && map.TryGetValue(Target.Id, out var addr)) ? addr : 0;
 }
@@ -110,7 +110,7 @@ public class DataNode : ExifNode
 
 public class ExifGraph
 {
-    private readonly List<ExifNode> _nodes = [];
+    private List<ExifNode> _nodes = [];
     public bool IsLittleEndian { get; set; } = true;
 
     public List<ExifNode> Nodes => _nodes;
@@ -138,6 +138,7 @@ public class ExifGraph
 
     public byte[] Compile()
     {
+        SortNodes();
         uint currentPtr = 0;
         var offsetMap = new Dictionary<long, uint>();
 
@@ -155,6 +156,11 @@ public class ExifGraph
         }
         return buffer;
     }
+
+    public void SortNodes()
+    {
+        _nodes = [.. _nodes.OrderBy(n => n.Id)];
+    }
 }
 
 public enum ExifDataType
@@ -166,14 +172,14 @@ public enum ExifDataType
 internal class ExifBlock 
 {
     public ExifBlockType Type { get; set; }
-    public int Offset { get; set; }
-    public int Length { get; set; }
+    public long Offset { get; set; }
+    public long Length { get; set; }
 }
 
 public enum ExifBlockType
 {
-    Unknown,
     TiffHeader,
     Ifd,
-    Data
+    Data,
+    UnlinkedData
 }

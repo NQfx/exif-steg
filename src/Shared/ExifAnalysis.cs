@@ -1,6 +1,9 @@
+using System.Runtime;
+using Steganography.Shared.Utils;
+
 namespace Steganography.Shared;
 
-public static partial class FileAnalysis 
+public static class ExifAnalysis 
 {
     public static ExifGraph GetExifGraph(byte[] data)
     {
@@ -32,15 +35,16 @@ public static partial class FileAnalysis
             if (offset <= 0 || offset >= data.Length || map.Any(b => b.Offset == offset))
                 continue;
 
-            reader.Seek((int)offset);
-            ushort count = reader.ReadUInt16();
+            reader.Seek(offset);
+            var count = reader.ReadUInt16();
             
             var currentIfd = new IfdNode { Id = offset };
-            map.Add(new ExifBlock { Offset = (int)offset, Length = 2 + count * 12 + 4, Type = ExifBlockType.Ifd });
+            map.Add(new ExifBlock { Offset = offset, Length = 2 + count * 12 + 4, Type = ExifBlockType.Ifd });
 
+            // Считывание полей
             for (int i = 0; i < count; i++)
             {
-                reader.Seek((int)offset + 2 + (i * 12));
+                reader.Seek(offset + 2 + (i * 12));
                 var entry = new EntryNode
                 {
                     Tag = reader.ReadUInt16(),
@@ -51,42 +55,41 @@ public static partial class FileAnalysis
                 uint valOrOff = reader.ReadUInt32();
                 int dataSize = CalculateSize(entry.Type, entry.Count);
 
-                if (dataSize > 4) // Ошибочная проверка, пропускает некоторые теги с ссылками на IFD + дублирование кода, пока костыль
+                if (entry.Tag == 0x8769 || entry.Tag == 0x8825)
+                {
+                    offsetsToParse.Enqueue(valOrOff);
+                }
+
+                else if (dataSize > 4)
                 {
                     if (!map.Any(b => b.Offset == valOrOff))
                     {
                         map.Add(new ExifBlock { Offset = (int)valOrOff, Length = dataSize, Type = ExifBlockType.Data });
-                        if (entry.Tag == 0x8769 || entry.Tag == 0x8825)
-                        {
-                            offsetsToParse.Enqueue(valOrOff);
-                        }
-                    }
-                    entry.InlineData = BitConverter.GetBytes(valOrOff); // Возможна ошибка с endian
-                }
-                else
-                {
-                    entry.InlineData = BitConverter.GetBytes(valOrOff);
-                    if (entry.Tag == 0x8769 || entry.Tag == 0x8825)
-                    {
-                        offsetsToParse.Enqueue(valOrOff);
+                        graph.AddNode(new DataNode { Id = valOrOff, Data = data[(int)valOrOff..(int)(valOrOff + dataSize)]});
                     }
                 }
+                // else Console.WriteLine($"{entry.Tag:X} : {entry.Count} x {entry.Type}");
+
+                entry.InlineData = BitConverter.GetBytes(valOrOff);
                 
                 currentIfd.Entries.Add(entry);
             }
 
             uint nextIfd = reader.ReadUInt32();
             if (nextIfd > 0) 
-            offsetsToParse.Enqueue(nextIfd);
+                offsetsToParse.Enqueue(nextIfd);
 
             graph.AddNode(currentIfd);
         }
 
+        graph.SortNodes();
+
+        // Считывание отступов между блоками Exif
         long cursor = 0;
         var sortedBlocks = map.OrderBy(b => b.Offset).ToList();
         foreach (var b in sortedBlocks)
         {
-            if (b.Offset > cursor && b.Type == ExifBlockType.Data)
+            if (b.Offset > cursor && b.Type == ExifBlockType.UnlinkedData)
             {
                 var gapData = data[(int)cursor..(int)b.Offset];
                 graph.AddNode(new DataNode { Id = cursor, Data = gapData});
@@ -94,6 +97,7 @@ public static partial class FileAnalysis
             cursor = b.Offset + b.Length;
         }
 
+        // Линкование узлов графа
         foreach (var node in graph.Nodes)
         {
             if (node is IfdNode ifd)
@@ -101,20 +105,17 @@ public static partial class FileAnalysis
                 foreach (var entry in ifd.Entries)
                 {
                     int dataSize = CalculateSize(entry.Type, entry.Count);
-                    if (dataSize > 4)
+                    if (dataSize > 4 || entry.Tag == 0x8769 || entry.Tag == 0x8825)
                     {
                         uint off = BitConverter.ToUInt32(entry.InlineData, 0);
-                        entry.Pointer.Target = graph.Nodes.FirstOrDefault(n => n.Id == off);
-                    }
-                    else if (entry.Tag == 0x8769 || entry.Tag == 0x8825)
-                    {
-                        uint off = BitConverter.ToUInt32(entry.InlineData, 0);
-                        entry.Pointer.Target = graph.Nodes.FirstOrDefault(n => n.Id == off);
+                        var target = graph.Nodes.FirstOrDefault(n => n.Id == off);
+                        if (target != null) entry.Pointer.Target = target;
                     }
                 }
             }
         }
 
+        graph.SortNodes();
         return graph;
     }
 
