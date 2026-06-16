@@ -19,32 +19,36 @@ public class ExifPointer
 
 public class TiffHeaderNode : ExifNode
 {
-    public override int Size => 8; 
+    public override int Size => 8;
     public ExifPointer FirstIfd { get; set; } = new ExifPointer();
 
     public override void Write(byte[] buffer, Dictionary<long, uint> map, bool isLittleEndian)
     {
         var signature = isLittleEndian ? "II" : "MM";
-        Encoding.ASCII.GetBytes(signature).CopyTo(buffer, FinalOffset);
-        WriteUInt16(buffer, FinalOffset + 2, 42, isLittleEndian);
+        Encoding.ASCII.GetBytes(signature).CopyTo(buffer, (int)FinalOffset);
+        WriteUInt16(buffer, FinalOffset + 2, 42, isLittleEndian); 
         WriteUInt32(buffer, FinalOffset + 4, FirstIfd.GetAddress(map), isLittleEndian);
     }
 
-    private void WriteUInt16(byte[] buffer, uint offset, ushort d, bool endian) {
-        var data = BitConverter.GetBytes(d); 
-        if (endian != BitConverter.IsLittleEndian) 
+    private void WriteUInt16(byte[] buffer, uint offset, ushort d, bool endian)
+    {
+        var data = BitConverter.GetBytes(d);
+        if (endian != BitConverter.IsLittleEndian)
             Array.Reverse(data);
-        data.CopyTo(buffer, offset);
+        data.CopyTo(buffer, (int)offset);
     }
-    private void WriteUInt32(byte[] buffer, uint offset, uint d, bool endian) {
-        var data = BitConverter.GetBytes(d); 
-        if (endian != BitConverter.IsLittleEndian) 
+
+    private void WriteUInt32(byte[] buffer, uint offset, uint d, bool endian)
+    {
+        var data = BitConverter.GetBytes(d);
+        if (endian != BitConverter.IsLittleEndian)
             Array.Reverse(data);
-        data.CopyTo(buffer, offset);
+        data.CopyTo(buffer, (int)offset);
     }
 }
 
-public class EntryNode
+
+public class EntryNode : ExifNode
 {
     public ushort Tag { get; set; }
     public ushort Type { get; set; }
@@ -53,24 +57,47 @@ public class EntryNode
     public ExifPointer Pointer { get; set; } = new ExifPointer();
     public byte[] InlineData { get; set; } = new byte[4];
 
-    public void Write(byte[] buffer, uint offset, Dictionary<long, uint> map, bool isLittleEndian)
+    public override int Size => 12;
+
+    public override void Write(byte[] buffer, Dictionary<long, uint> map, bool isLittleEndian)
     {
-        Write(buffer, offset, Tag, isLittleEndian);
-        Write(buffer, offset + 2, Type, isLittleEndian);
-        Write(buffer, offset + 4, Count, isLittleEndian);
+        WriteUInt16(buffer, FinalOffset, Tag, isLittleEndian);
+        WriteUInt16(buffer, FinalOffset + 2, Type, isLittleEndian);
+        WriteUInt32(buffer, FinalOffset + 4, Count, isLittleEndian);
 
         if (Pointer.Target != null)
-            Write(buffer, offset + 8, Pointer.GetAddress(map), isLittleEndian);
+        {
+            WriteUInt32(buffer, FinalOffset + 8, Pointer.GetAddress(map), isLittleEndian);
+        }
+        else if (ValueOffset.HasValue)
+        {
+            WriteUInt32(buffer, FinalOffset +8, ValueOffset.Value, isLittleEndian);
+        }
+        else if (InlineData != null && InlineData.Length == 4)
+        {
+            Array.Copy(InlineData, 0, buffer, FinalOffset + 8, 4);
+        }
         else
-            Array.Copy(InlineData, 0, buffer, offset + 8, 4);
+        {
+            for (int i = 0; i < 4; i++)
+                buffer[FinalOffset + 8 + i] = 0;
+        }
     }
 
-    private void Write<T>(byte[] b, uint off, T v, bool le) where T : struct {
-        dynamic val = v; 
-        byte[] data = BitConverter.GetBytes(val);
-        if (le != BitConverter.IsLittleEndian) 
+    private void WriteUInt16(byte[] buffer, uint offset, ushort value, bool isLittleEndian)
+    {
+        var data = BitConverter.GetBytes(value);
+        if (isLittleEndian != BitConverter.IsLittleEndian)
             Array.Reverse(data);
-        data.CopyTo(b, off);
+        Array.Copy(data, 0, buffer, offset, 2);
+    }
+
+    private void WriteUInt32(byte[] buffer, uint offset, uint value, bool isLittleEndian)
+    {
+        var data = BitConverter.GetBytes(value);
+        if (isLittleEndian != BitConverter.IsLittleEndian)
+            Array.Reverse(data);
+        Array.Copy(data, 0, buffer, offset, 4);
     }
 }
 
@@ -84,16 +111,22 @@ public class IfdNode : ExifNode
     public override void Write(byte[] buffer, Dictionary<long, uint> map, bool isLittleEndian)
     {
         var countBytes = BitConverter.GetBytes((ushort)Entries.Count);
-        if (isLittleEndian != BitConverter.IsLittleEndian) Array.Reverse(countBytes);
-        countBytes.CopyTo(buffer, FinalOffset);
+        if (isLittleEndian != BitConverter.IsLittleEndian) 
+            Array.Reverse(countBytes);
+        Array.Copy(countBytes, 0, buffer, FinalOffset, 2);
 
-        for (int i = 0; i < Entries.Count; i++)
-            Entries[i].Write(buffer, FinalOffset + 2 + (uint)(i * 12), map, isLittleEndian);
+        uint entryOffset = FinalOffset + 2;
+        foreach (var entry in Entries)
+        {
+            entry.FinalOffset = entryOffset; 
+            entry.Write(buffer, map, isLittleEndian);
+            entryOffset += 12;
+        }
 
         var nextAddr = BitConverter.GetBytes(NextIfd.GetAddress(map));
         if (isLittleEndian != BitConverter.IsLittleEndian) 
             Array.Reverse(nextAddr);
-        nextAddr.CopyTo(buffer, FinalOffset + (uint)Size - 4);
+        Array.Copy(nextAddr, 0, buffer, FinalOffset + (uint)Size - 4, 4);
     }
 }
 
@@ -101,10 +134,25 @@ public class DataNode : ExifNode
 {
     public ExifDataType Type;
     public byte[] Data { get; set; } = Array.Empty<byte>();
-    public override int Size => Data.Length;
+    
+    public override int Size 
+    {
+        get 
+        {
+            int size = Data.Length;
+            return (size % 2 == 0) ? size : size + 1;
+        }
+    }
+    
     public override void Write(byte[] buffer, Dictionary<long, uint> map, bool isLittleEndian)
     {
-        if (Size > 0) Array.Copy(Data, 0, buffer, FinalOffset, Size);
+        if (Data.Length > 0)
+        {
+            Array.Copy(Data, 0, buffer, FinalOffset, Data.Length);
+            
+            if (Data.Length % 2 != 0)
+                buffer[FinalOffset + Data.Length] = 0;
+        }
     }
 }
 
@@ -144,16 +192,21 @@ public class ExifGraph
 
         foreach (var node in _nodes)
         {
+            if (node is DataNode && currentPtr % 2 != 0)
+                currentPtr += 1;
+                
             node.FinalOffset = currentPtr;
             offsetMap[node.Id] = currentPtr;
             currentPtr += (uint)node.Size;
         }
 
         byte[] buffer = new byte[currentPtr];
+        
         foreach (var node in _nodes)
         {
             node.Write(buffer, offsetMap, IsLittleEndian);
         }
+        
         return buffer;
     }
 
@@ -162,6 +215,7 @@ public class ExifGraph
         _nodes = [.. _nodes.OrderBy(n => n.Id)];
     }
 }
+
 
 public enum ExifDataType
 {

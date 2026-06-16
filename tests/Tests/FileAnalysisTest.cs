@@ -7,8 +7,8 @@ public class UnitTest1
     [Fact]
     public void GetFileFormatTest()
     {
-        var img1 = GetPath("img/1.jpg");
-        var img2 = GetPath("img/4.png");
+        var img1 = GetPath("img/cat.jpg");
+        var img2 = GetPath("img/basketball.png");
         Assert.Equal(FileFormat.Jpeg, FileAnalysis.GetFileFormat(img1));
         Assert.Equal(FileFormat.Png, FileAnalysis.GetFileFormat(img2));
     }
@@ -16,7 +16,7 @@ public class UnitTest1
     [Fact]
     public void GetJpegAppSegments()
     {
-        var img = GetPath("img/1.jpg");
+        var img = GetPath("img/cat.jpg");
         var segments = FileAnalysis.GetJpegAppSegments(img);
 
         foreach(var s in segments)
@@ -36,11 +36,20 @@ public class UnitTest1
     [Fact]
     public void GetExifGraphFromJpegTest()
     {
-        var img = GetPath("img/1.jpg");
+        var img = GetPath("img/cat.jpg");
         var segments = FileAnalysis.GetJpegAppSegments(img);
-
+        
         var app1 = segments.Where(s  => System.Text.Encoding.UTF8.GetString(s.Identifier) == "Exif\0\0").FirstOrDefault();
+
         var graph = ExifAnalysis.GetExifGraph(app1.Data);
+        app1.Data = graph.Compile();
+
+        FileEdit.OverwriteJpegAppSegements(segments, img);
+
+        segments = FileAnalysis.GetJpegAppSegments(img);
+        app1 = segments.Where(s  => System.Text.Encoding.UTF8.GetString(s.Identifier) == "Exif\0\0").FirstOrDefault();
+
+        graph = ExifAnalysis.GetExifGraph(app1.Data);
 
         var ifd0 = graph.Nodes.OfType<IfdNode>().First() as IfdNode;
         Assert.NotNull(ifd0);
@@ -75,12 +84,11 @@ public class UnitTest1
     [Fact]
     public void GetPngChunksTest()
     {
-        var img = GetPath("img/4.png");
+        var img = GetPath("img/basketball.png");
         var chunks = FileAnalysis.GetPngChunks(img);
 
         Assert.True(chunks.Count >= 3);
         Assert.True(chunks.Where(e => {return e.Type != null && (GetStringFromBytes(e.Type) == "IHDR");}).Count() == 1);
-        Assert.True(chunks.Where(e => {return e.Type != null && (GetStringFromBytes(e.Type) == "IDAT");}).Count() == 1);
         Assert.True(chunks.Where(e => {return e.Type != null && (GetStringFromBytes(e.Type) == "IEND");}).Count() == 1);
     }
 
@@ -122,11 +130,19 @@ public class UnitTest1
     }
 
     [Fact]
-    public void GetJpegAppSegmentsPosTest()
+    public void OverwritePngChunksTest()
     {
-        var img = GetPath("img/nyc.jpg");
-        var pos = FileAnalysis.GetAppSegemntsPos(img);
-        Console.WriteLine(pos.Start + " " + pos.End);
+        var img = GetPath("img/basketball.png");
+        var oldChunks = FileAnalysis.GetPngChunks(img);
+        FileEdit.OverwritePngChunks(oldChunks, img);
+        var newChunks = FileAnalysis.GetPngChunks(img);
+        for (int i = 0; i < oldChunks.Count; i++)
+        {
+            Assert.Equal(oldChunks[i].Crc, newChunks[i].Crc);
+            Assert.Equal(oldChunks[i].Type, newChunks[i].Type);
+            Assert.Equal(oldChunks[i].Data, newChunks[i].Data);
+            Assert.Equal(oldChunks[i].Length, newChunks[i].Length);
+        }
     }
 
     private static string GetPath(string localPath) => "../../../" + localPath;

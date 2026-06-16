@@ -69,8 +69,10 @@ public static class ExifAnalysis
                     }
                 }
                 // else Console.WriteLine($"{entry.Tag:X} : {entry.Count} x {entry.Type}");
-
-                entry.InlineData = BitConverter.GetBytes(valOrOff);
+                
+                entry.InlineData = isLittleEndian 
+                ? BitConverter.GetBytes(valOrOff)
+                : BitConverter.GetBytes(valOrOff).Reverse().ToArray();
                 
                 currentIfd.Entries.Add(entry);
             }
@@ -82,7 +84,7 @@ public static class ExifAnalysis
             graph.AddNode(currentIfd);
         }
 
-        graph.SortNodes();
+        // graph.SortNodes();
 
         // Считывание отступов между блоками Exif
         long cursor = 0;
@@ -98,6 +100,13 @@ public static class ExifAnalysis
         }
 
         // Линкование узлов графа
+
+        var tiffHeader = graph.Nodes.OfType<TiffHeaderNode>().FirstOrDefault();
+        var firstIfd = graph.Nodes.OfType<IfdNode>().FirstOrDefault();
+        if (tiffHeader == null || firstIfd == null)
+            throw new EntryPointNotFoundException("Ifd or Tiff Header not found");
+        tiffHeader.FirstIfd.Target = firstIfd;
+
         foreach (var node in graph.Nodes)
         {
             if (node is IfdNode ifd)
@@ -107,7 +116,9 @@ public static class ExifAnalysis
                     int dataSize = CalculateSize(entry.Type, entry.Count);
                     if (dataSize > 4 || entry.Tag == 0x8769 || entry.Tag == 0x8825)
                     {
-                        uint off = BitConverter.ToUInt32(entry.InlineData, 0);
+                        uint off = isLittleEndian 
+                        ? BitConverter.ToUInt32(entry.InlineData, 0)
+                        : BitConverter.ToUInt32(entry.InlineData.Reverse().ToArray(), 0);
                         var target = graph.Nodes.FirstOrDefault(n => n.Id == off);
                         if (target != null) entry.Pointer.Target = target;
                     }
@@ -115,7 +126,7 @@ public static class ExifAnalysis
             }
         }
 
-        graph.SortNodes();
+        // graph.SortNodes();
         return graph;
     }
 
