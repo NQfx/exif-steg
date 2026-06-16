@@ -1,9 +1,18 @@
+using System.Buffers.Binary;
+using Steganography.Shared.Utils;
 using System.Text;
 
 namespace Steganography.Shared;
 public static class Strategies {
 
-    public static void AddMakerNotesEntry(ExifGraph graph, byte[] data)
+public static class Signatures
+{
+    public const byte Signature = 0x92;
+    public const byte EncryptedDataMarker = 0xF2;
+    public const byte UnencryptedDataMarker = 0xF1;
+}
+
+public static void AddMakerNotesEntry(ExifGraph graph, byte[] data, bool isEncrypted = false)
     {
         var header = graph.Nodes.OfType<TiffHeaderNode>().FirstOrDefault();
         var ifd0 = graph.Nodes.OfType<IfdNode>().FirstOrDefault();
@@ -11,12 +20,13 @@ public static class Strategies {
         if (header is null) throw new Exception("Invalid Exif Struct");
         if (ifd0 is null && header != null) 
         {
-            ifd0 = new IfdNode(){Id = 9};
+            ifd0 = new IfdNode(){Id = 9}; // заменить магическое число на наибольший id + 1
             header.FirstIfd.Target = ifd0;
             graph.AddNode(ifd0);
         }
 
-        var dataNode = new DataNode(){Id = int.MaxValue, Data = data};
+        var dataHeader = GetDataHeader(data, isEncrypted);
+        var dataNode = new DataNode(){Id = int.MaxValue, Data = [.. dataHeader, .. data]}; // заменить MaxValue на наибольший id + 1
 
         var entry = ifd0.Entries.Find(e => e.Tag == 0x927c);
         if (entry != null) throw new Exception("This entry already added");
@@ -26,6 +36,29 @@ public static class Strategies {
         ifd0.Entries.Add(entry);
         graph.Nodes.Add(dataNode);
     }
+
+    private static byte[] GetDataHeader(byte[] data, bool isEncrypted)
+    {
+        var header = new List<byte>(){Signatures.Signature};
+        var dataMarker = isEncrypted ? Signatures.EncryptedDataMarker : Signatures.UnencryptedDataMarker;
+        header.Add(dataMarker);
+
+        var crc = ConvertUint32ToBigEndianBytes(Crc32.ComputeCrc32(data)); // Crc32 хэш-сумма только самого блока данных 
+        header.AddRange(crc);
+        
+        var length = ConvertUint32ToBigEndianBytes((uint)data.Length); // Длина только самого блока данных
+        header.AddRange(length);
+        
+        return [.. header];
+    }
+
+    private static byte[] ConvertUint32ToBigEndianBytes(uint value)
+    {
+        byte[] buffer = new byte[4];
+        BinaryPrimitives.WriteUInt32BigEndian(buffer, value);
+        return buffer;
+    }
+
 
 
     public static void WriteStrategieLegacy(byte[] data, string path,bool isDeleteData = false, string? outputPath = null) {
