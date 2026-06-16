@@ -12,31 +12,28 @@ public static class Signatures
     public const byte UnencryptedDataMarker = 0xF1;
 }
 
-public static void AddMakerNotesEntry(ExifGraph graph, byte[] data, bool isEncrypted = false)
+ public static void AddMakerNotesEntry(ExifGraph graph, byte[] data, bool isEncrypted = false)
     {
         var header = graph.Nodes.OfType<TiffHeaderNode>().FirstOrDefault();
         var ifd0 = graph.Nodes.OfType<IfdNode>().FirstOrDefault();
         
-        if (header is null) throw new Exception("Invalid Exif Struct");
-        if (ifd0 is null && header != null) 
-        {
-            ifd0 = new IfdNode(){Id = 9}; // заменить магическое число на наибольший id + 1
-            header.FirstIfd.Target = ifd0;
-            graph.AddNode(ifd0);
-        }
+        if (header is null || ifd0 is null) throw new Exception("Invalid Exif Struction");
 
         var dataHeader = GetDataHeader(data, isEncrypted);
         var dataNode = new DataNode(){Id = int.MaxValue, Data = [.. dataHeader, .. data]}; // заменить MaxValue на наибольший id + 1
 
         var entry = ifd0.Entries.Find(e => e.Tag == 0x927c);
+
         if (entry != null) throw new Exception("This entry already added");
-        else entry = new EntryNode(){Tag = 0x927c, Type = 7, Count = (uint)data.Length};
+        else entry = new EntryNode(){Tag = 0x927c, Type = 7, Count = (uint)dataNode.Data.Length};
+        Console.WriteLine("DataLength: " + (uint)dataNode.Data.Length);
+
         entry.Pointer.Target = dataNode;
 
         ifd0.Entries.Add(entry);
         graph.Nodes.Add(dataNode);
     }
-
+    
     private static byte[] GetDataHeader(byte[] data, bool isEncrypted)
     {
         var header = new List<byte>(){Signatures.Signature};

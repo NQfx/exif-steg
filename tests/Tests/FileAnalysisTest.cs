@@ -1,4 +1,5 @@
-﻿using Steganography.Shared;
+﻿using System.ComponentModel;
+using Steganography.Shared;
 
 namespace Steganography.Tests;
 
@@ -149,6 +150,7 @@ public class UnitTest1
     public void MakerNotesStrategyTest()
     {
         var img = GetPath("img/basketball.png");
+
         var chunks = FileAnalysis.GetPngChunks(img);
         var exifChunk = chunks.Where(e => {return e.Type != null && (GetStringFromBytes(e.Type) == "eXIf");}).First();
         var graph = ExifAnalysis.GetExifGraph(exifChunk.Data);
@@ -158,6 +160,10 @@ public class UnitTest1
 
         exifChunk.Data = graph.Compile();
         FileEdit.OverwritePngChunks(chunks, img);
+
+        chunks = FileAnalysis.GetPngChunks(img);
+        exifChunk = chunks.Find(e => {return e.Type != null && (GetStringFromBytes(e.Type) == "eXIf");});
+        graph = ExifAnalysis.GetExifGraph(exifChunk.Data);
 
         var ifd0 = graph.Nodes.OfType<IfdNode>().First() as IfdNode;
         Assert.NotNull(ifd0);
@@ -174,7 +180,7 @@ public class UnitTest1
                     foreach(var i in target.Entries)
                     {
                         var data1 = i.Pointer.Target as DataNode;
-                        if (data1 is null)
+                        if (data1 is null) 
                             Console.WriteLine($"\t0x{i.Tag:X} {GetStringFromBytes(e.InlineData)}");
                         else
                             Console.WriteLine($"\t0x{i.Tag:X} {GetStringFromBytes(data1.Data)}");
@@ -183,7 +189,7 @@ public class UnitTest1
                 }
             }
             else if (data is null)
-                Console.WriteLine($"0x{e.Tag:X} {e.InlineData[0]}");
+                Console.WriteLine($"0x{e.Tag:X} {GetStringFromBytes(e.InlineData)}");
             else
                 Console.WriteLine($"0x{e.Tag:X} {GetStringFromBytes(data.Data)}");
         }
