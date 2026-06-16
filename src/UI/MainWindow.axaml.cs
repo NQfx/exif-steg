@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Steganography.Shared;
+using Steganography.Core;
 using System;
 using System.IO;
 using System.Linq;

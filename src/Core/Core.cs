@@ -1,6 +1,8 @@
 ﻿using Steganography.Shared;
 using System.Text;
 
+namespace Steganography.Core;
+
 public class CoreObject {
     public string Path { get; }
 
@@ -32,10 +34,10 @@ public class CoreObject {
         
     }
     public void DeleteOurApp1() {
-        Strategies.WriteStrategieLegacy(Encoding.UTF8.GetBytes(""), Path, true);
+        Shared.Strategies.WriteStrategieLegacy(Encoding.UTF8.GetBytes(""), Path, true);
     }
     public void Write(string text) {
-        Strategies.WriteStrategieLegacy(Encoding.UTF8.GetBytes(text), Path);
+        Shared.Strategies.WriteStrategieLegacy(Encoding.UTF8.GetBytes(text), Path);
     }
 
 }

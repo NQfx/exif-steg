@@ -145,6 +145,51 @@ public class UnitTest1
         }
     }
 
+    [Fact]
+    public void MakerNotesStrategyTest()
+    {
+        var img = GetPath("img/basketball.png");
+        var chunks = FileAnalysis.GetPngChunks(img);
+        var exifChunk = chunks.Where(e => {return e.Type != null && (GetStringFromBytes(e.Type) == "eXIf");}).First();
+        var graph = ExifAnalysis.GetExifGraph(exifChunk.Data);
+
+        var text = new byte[]{116, 101, 120, 116};
+        Strategies.AddMakerNotesEntry(graph, text);
+
+        exifChunk.Data = graph.Compile();
+        FileEdit.OverwritePngChunks(chunks, img);
+
+        var ifd0 = graph.Nodes.OfType<IfdNode>().First() as IfdNode;
+        Assert.NotNull(ifd0);
+
+        foreach(EntryNode e in ifd0.Entries)
+        {
+            var data = e.Pointer.Target as DataNode;
+            if (e.Tag == 0x8769)
+            {
+                var target = e.Pointer.Target is IfdNode ? e.Pointer.Target as IfdNode : null;
+                Console.WriteLine($"0x{e.Tag:X} IFD {target}");
+                if (target != null)
+                {
+                    foreach(var i in target.Entries)
+                    {
+                        var data1 = i.Pointer.Target as DataNode;
+                        if (data1 is null)
+                            Console.WriteLine($"\t0x{i.Tag:X} {GetStringFromBytes(e.InlineData)}");
+                        else
+                            Console.WriteLine($"\t0x{i.Tag:X} {GetStringFromBytes(data1.Data)}");
+
+                    }
+                }
+            }
+            else if (data is null)
+                Console.WriteLine($"0x{e.Tag:X} {e.InlineData[0]}");
+            else
+                Console.WriteLine($"0x{e.Tag:X} {GetStringFromBytes(data.Data)}");
+        }
+    }
+
+
     private static string GetPath(string localPath) => "../../../" + localPath;
     private static string GetStringFromBytes(byte[] bytes) => System.Text.Encoding.UTF8.GetString(bytes);
 }
