@@ -1,2 +1,11 @@
-﻿// See https://aka.ms/new-console-template for more information
-Console.WriteLine("Hello, World!");
+﻿using Steganography.Core;
+
+namespace Steganography.CLI;
+
+class Program
+{
+    public static void Main()
+    {
+        
+    }
+}

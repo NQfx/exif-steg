@@ -1,0 +1,2 @@
+namespace Steganography.CLI.Commands;
+

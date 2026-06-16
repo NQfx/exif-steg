@@ -220,9 +220,10 @@ public class PngChunk
 
 public enum FileFormat
 {
-    Jpeg,
-    Png,
-    Unknown
+    None = 0,
+    Jpeg = 1,
+    Png = 2,
+    Unknown = 3
 }
 
 internal static class JpegMarkers

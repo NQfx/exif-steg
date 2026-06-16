@@ -3,23 +3,28 @@ using System.Text;
 
 namespace Steganography.Core;
 
-public class CoreObject {
-    public string Path { get; }
+public class CoreObject 
+{
+    public FileFormat Format { get; private set;}
+    public string? FilePath { get; private set; }
+    private Dictionary<int, ExifNode> dataBlocksIdTable = new();
 
     public AppSegment? App1Segment { get; private set; }
 
-    public CoreObject(string path) {
-
-        if (!File.Exists(path)) throw new FileNotFoundException(path);
-        if (FileAnalysis.GetFileFormat(path) != FileFormat.Jpeg) 
-            throw new InvalidOperationException("Only JPEG supported");
-        Path = path;
-
-        LoadApp1();
-        
-        if (App1Segment == null) return;
-       
+    public bool TrySelectFile(string path)
+    {
+        if (!File.Exists(path)) return false;
+        Format = FileAnalysis.GetFileFormat(path);
+        return true;
     }
+
+    public List<DataBlock> GetDataBlocks()
+    {
+        var blocks = new List<DataBlock>();
+        
+        return blocks;
+    }
+
     public string Read(bool isNeedReload) {
         LoadApp1();
         if (App1Segment.Data != null) return Encoding.UTF8.GetString(App1Segment.Data);
